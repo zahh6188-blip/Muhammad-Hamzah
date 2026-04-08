@@ -1,0 +1,46 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: employees
+    // Document ID: employeeId (string)
+    // Fields:
+    //   - id: string (required)
+    //   - name: string (required, 1-100 chars)
+    //   - position: string (required, 1-100 chars)
+    //   - type: string (required, 'Roster' or 'Lokal')
+    //   - rosterPattern: list (required, numbers 0 or 1)
+    //   - startDate: string (required, ISO date)
+    //   - offDays: list (optional, numbers 0-6)
+    //   - manualOverrides: map (optional, date string -> shift type)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isValidEmployee(data) {
+      return data.keys().hasAll(['id', 'name', 'position', 'type', 'rosterPattern', 'startDate']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             data.position is string && data.position.size() > 0 && data.position.size() <= 100 &&
+             data.type in ['Roster', 'Lokal'] &&
+             data.rosterPattern is list &&
+             data.startDate is string &&
+             (!('offDays' in data) || data.offDays is list) &&
+             (!('manualOverrides' in data) || data.manualOverrides is map);
+    }
+
+    match /employees/{employeeId} {
+      // For this app, we allow all authenticated users to read and write employees
+      // since it's a collaborative dashboard for the team.
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && isValidEmployee(request.resource.data);
+      allow delete: if isAuthenticated();
+    }
+  }
+}

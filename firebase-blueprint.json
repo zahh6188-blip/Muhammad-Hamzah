@@ -1,0 +1,26 @@
+{
+  "entities": {
+    "Employee": {
+      "title": "Employee",
+      "description": "Data pegawai dan pola roster mereka",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "position": { "type": "string" },
+        "type": { "type": "string", "enum": ["Roster", "Lokal"] },
+        "rosterPattern": { "type": "array", "items": { "type": "number" } },
+        "startDate": { "type": "string", "format": "date" },
+        "offDays": { "type": "array", "items": { "type": "number" } },
+        "manualOverrides": { "type": "object" }
+      },
+      "required": ["id", "name", "position", "type", "rosterPattern", "startDate"]
+    }
+  },
+  "firestore": {
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Koleksi data pegawai"
+    }
+  }
+}
