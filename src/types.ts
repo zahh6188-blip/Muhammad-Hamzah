@@ -10,6 +10,7 @@ export interface Employee {
   type: EmployeeType;
   rosterPattern: number[]; // e.g., [1, 1, 1, 1, 0, 0] for 4-on-2-off (1=work, 0=off)
   startDate: string; // The date when the roster pattern started
+  order?: number; // Sorting order
   offDays?: number[]; // For 'Lokal' type: 0=Sun, 1=Mon, ..., 6=Sat. Default [0, 6]
   manualOverrides?: Record<string, ShiftType>; // Date string (YYYY-MM-DD) -> ShiftType
 }

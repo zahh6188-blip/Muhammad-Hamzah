@@ -20,12 +20,14 @@ import {
   MoreVertical,
   Briefcase,
   Download,
-  Menu
+  Menu,
+  GripVertical
 } from 'lucide-react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import { signInWithPopup, GoogleAuthProvider, onAuthStateChanged, User, signOut } from 'firebase/auth';
-import { collection, onSnapshot, setDoc, doc, deleteDoc, getDocFromServer } from 'firebase/firestore';
+import { collection, onSnapshot, setDoc, doc, deleteDoc, getDocFromServer, writeBatch } from 'firebase/firestore';
 import { auth, db, OperationType, handleFirestoreError } from './firebase';
 import { LogIn, LogOut } from 'lucide-react';
 
@@ -175,10 +177,47 @@ export default function App() {
 
   // Filtered employees based on search query
   const filteredEmployees = useMemo(() => {
-    return employees.filter(emp => 
-      searchQuery === '' || emp.name.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    return employees
+      .filter(emp => 
+        searchQuery === '' || emp.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+      .sort((a, b) => {
+        if (a.order !== undefined && b.order !== undefined) {
+          return a.order - b.order;
+        }
+        return a.name.localeCompare(b.name);
+      });
   }, [employees, searchQuery]);
+
+  const onDragEnd = async (result: DropResult) => {
+    if (!result.destination || !isAuthorized) return;
+    
+    const items = Array.from(filteredEmployees) as Employee[];
+    const [reorderedItem] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, reorderedItem);
+    
+    // Update local state immediately for smooth UI
+    const updatedEmployees = employees.map(emp => {
+      const newIndex = items.findIndex(item => item.id === emp.id);
+      if (newIndex !== -1) {
+        return { ...emp, order: newIndex };
+      }
+      return emp;
+    });
+    setEmployees(updatedEmployees);
+    
+    // Persist to Firestore
+    try {
+      const batch = writeBatch(db);
+      items.forEach((emp: Employee, index: number) => {
+        const empRef = doc(db, 'employees', emp.id);
+        batch.update(empRef, { order: index });
+      });
+      await batch.commit();
+    } catch (error) {
+      console.error("Error updating order:", error);
+    }
+  };
 
   // Today's schedule
   const todaySchedule = useMemo(() => {
@@ -1130,239 +1169,260 @@ export default function App() {
                   </CardHeader>
                   <CardContent className="p-0">
                     <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader className="bg-gray-50/50">
-                          <TableRow>
-                            <TableHead className="sticky left-0 bg-gray-50 z-20 min-w-[180px] border-r border-gray-100">Pegawai</TableHead>
-                            {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => (
-                              <TableHead key={i} className="text-center min-w-[40px] px-1 text-[10px] font-bold">
-                                {i + 1}
-                              </TableHead>
-                            ))}
-                            <TableHead className="sticky right-0 bg-gray-50 z-20 text-right min-w-[100px] border-l border-gray-100">Aksi</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredEmployees.map((emp) => (
-                            <TableRow key={emp.id} className="hover:bg-gray-50/30 transition-colors">
-                              <TableCell className="sticky left-0 bg-white z-10 font-medium border-r border-gray-100 py-3">
-                                <div className="flex items-center gap-2">
-                                  <Avatar className="w-6 h-6">
-                                    <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.name}`} />
-                                    <AvatarFallback>{emp.name.charAt(0)}</AvatarFallback>
-                                  </Avatar>
-                                  <div className="flex flex-col min-w-0">
-                                    <span className="text-xs font-semibold truncate max-w-[100px]">{emp.name}</span>
-                                    <Badge variant="outline" className={`text-[7px] px-1 py-0 h-3 w-fit shrink-0 ${emp.type === 'Roster' ? 'text-blue-500 border-blue-200 bg-blue-50' : 'text-green-500 border-green-200 bg-green-50'}`}>
-                                      {emp.type}
-                                    </Badge>
-                                  </div>
-                                </div>
-                              </TableCell>
-                              {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
-                                const date = addDays(startOfMonth(currentMonth), i);
-                                const shift = getShiftForDate(emp, date);
-                                const shorthand = shift === 'Libur' ? 'L' : shift.charAt(0);
-                                
-                                return (
-                                  <TableCell key={i} className="p-1 text-center">
-                                    <div 
-                                      className={`
-                                        w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
-                                        ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 
-                                          shift === 'Siang' ? 'bg-orange-100 text-orange-700' : 
-                                          shift === 'Malam' ? 'bg-purple-100 text-purple-700' : 
-                                          'bg-gray-100 text-gray-400'}
-                                      `}
-                                      title={`${format(date, 'd MMMM')}: ${shift}`}
-                                    >
-                                      {shorthand}
-                                    </div>
-                                  </TableCell>
-                                );
-                              })}
-                              <TableCell className="sticky right-0 bg-white z-10 text-right border-l border-gray-100">
-                                <div className="flex justify-end gap-1">
-                                  {isAuthorized && (
-                                    <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
-                                    <DialogTrigger
-                                      render={
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/5"
-                                          onClick={() => setEditingEmployee(emp)}
-                                        />
-                                      }
-                                    >
-                                      <Settings className="w-4 h-4" />
-                                    </DialogTrigger>
-                                    <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
-                                      <form onSubmit={handleEditEmployee}>
-                                        <DialogHeader>
-                                          <DialogTitle>Edit Jadwal Pegawai</DialogTitle>
-                                          <DialogDescription>
-                                            Perbarui detail dan tentukan jadwal libur/masuk secara manual.
-                                          </DialogDescription>
-                                        </DialogHeader>
-                                        <div className="grid gap-6 py-4">
-                                          <div className="grid grid-cols-2 gap-4">
-                                            <div className="grid gap-2">
-                                              <Label htmlFor="edit-name">Nama Lengkap</Label>
-                                              <Input id="edit-name" name="name" defaultValue={emp.name} required />
-                                            </div>
-                                            <div className="grid gap-2">
-                                              <Label htmlFor="edit-position">Jabatan</Label>
-                                              <Input id="edit-position" name="position" defaultValue={emp.position} required />
-                                            </div>
-                                          </div>
-
-                                          <div className="grid grid-cols-2 gap-4">
-                                            <div className="grid gap-2">
-                                              <Label htmlFor="edit-type">Tipe Pegawai</Label>
-                                              <Select 
-                                                name="type" 
-                                                defaultValue={emp.type}
-                                                onValueChange={(v) => {
-                                                  if (editingEmployee) {
-                                                    setEditingEmployee({ ...editingEmployee, type: v as EmployeeType });
-                                                  }
-                                                }}
-                                              >
-                                                <SelectTrigger>
-                                                  <SelectValue placeholder="Pilih Tipe" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value="Roster">Pegawai Roster (Otomatis)</SelectItem>
-                                                  <SelectItem value="Lokal">Pegawai Lokal (Tetap)</SelectItem>
-                                                </SelectContent>
-                                              </Select>
-                                            </div>
-                                            <div className="grid gap-2">
-                                              <Label htmlFor="edit-startDate">Tanggal Mulai Roster</Label>
-                                              <Input id="edit-startDate" name="startDate" type="date" defaultValue={emp.startDate} required />
-                                            </div>
-                                          </div>
-
-                                          {editingEmployee?.type === 'Roster' ? (
-                                            <div className="grid gap-2">
-                                              <Label htmlFor="edit-pattern">Pola Roster (Masuk,Libur)</Label>
-                                              <Input 
-                                                id="edit-pattern" 
-                                                name="pattern" 
-                                                defaultValue={`${emp.rosterPattern.filter(x => x === 1).length},${emp.rosterPattern.filter(x => x === 0).length}`}
-                                                placeholder="Contoh: 42,14" 
-                                              />
-                                              <p className="text-[10px] text-gray-400">Hanya berlaku untuk Pegawai Roster</p>
-                                            </div>
-                                          ) : (
-                                            <div className="grid gap-2">
-                                              <Label>Hari Libur Mingguan</Label>
-                                              <div className="flex flex-wrap gap-2">
-                                                {DAYS.map((day) => (
-                                                  <Button
-                                                    key={day.value}
-                                                    type="button"
-                                                    variant={editingEmployee?.offDays?.includes(day.value) ? 'default' : 'outline'}
-                                                    size="sm"
-                                                    className="h-8 px-2 text-[10px]"
-                                                    onClick={() => {
-                                                      if (editingEmployee) {
-                                                        const currentOffDays = editingEmployee.offDays || [0, 6];
-                                                        const newOffDays = currentOffDays.includes(day.value)
-                                                          ? currentOffDays.filter(d => d !== day.value)
-                                                          : [...currentOffDays, day.value];
-                                                        setEditingEmployee({ ...editingEmployee, offDays: newOffDays });
-                                                      }
-                                                    }}
-                                                  >
-                                                    {day.label}
-                                                  </Button>
-                                                ))}
-                                              </div>
-                                            </div>
-                                          )}
-
-                                          <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                              <Label className="text-base">Atur Jadwal ({format(currentMonth, 'MMMM yyyy', { locale: id })})</Label>
-                                              <div className="flex flex-wrap gap-2 justify-end">
-                                                <div className="flex items-center gap-1">
-                                                  <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-200 rounded-sm" />
-                                                  <span className="text-[9px] text-gray-500">Pagi</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                  <div className="w-2.5 h-2.5 bg-orange-100 border border-orange-200 rounded-sm" />
-                                                  <span className="text-[9px] text-gray-500">Siang</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                  <div className="w-2.5 h-2.5 bg-purple-100 border border-purple-200 rounded-sm" />
-                                                  <span className="text-[9px] text-gray-500">Malam</span>
-                                                </div>
-                                                <div className="flex items-center gap-1">
-                                                  <div className="w-2.5 h-2.5 bg-gray-100 border border-gray-200 rounded-sm" />
-                                                  <span className="text-[9px] text-gray-500">Libur</span>
-                                                </div>
-                                              </div>
-                                            </div>
-                                            
-                                            <div className="grid grid-cols-7 gap-2 border p-4 rounded-lg bg-gray-50/50">
-                                              {['S', 'S', 'R', 'K', 'J', 'S', 'M'].map((day, i) => (
-                                                <div key={i} className="text-center text-[10px] font-bold text-gray-400 mb-1">{day}</div>
-                                              ))}
-                                              {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
-                                                const date = addDays(startOfMonth(currentMonth), i);
-                                                const shift = getShiftForDate(editingEmployee || emp, date);
-                                                const isLibur = shift === 'Libur';
-                                                const shorthand = isLibur ? 'L' : shift.charAt(0);
-                                                
-                                                return (
-                                                  <button
-                                                    key={i}
-                                                    type="button"
-                                                    onClick={() => toggleManualShift(date)}
-                                                    className={`
-                                                      aspect-square rounded-md flex flex-col items-center justify-center transition-all border
-                                                      ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-                                                        shift === 'Siang' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
-                                                        shift === 'Malam' ? 'bg-purple-100 text-purple-700 border-purple-200' : 
-                                                        'bg-white text-gray-400 border-gray-100 hover:border-primary/30'}
-                                                    `}
-                                                  >
-                                                    <span className="text-[10px] font-bold">{format(date, 'd')}</span>
-                                                    <span className="text-[8px] font-bold opacity-80">{shorthand}</span>
-                                                  </button>
-                                                );
-                                              })}
-                                            </div>
-                                            <p className="text-[10px] text-gray-400 italic text-center">
-                                              Klik berulang pada tanggal untuk ganti status (Pagi → Siang → Malam → Libur)
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <DialogFooter>
-                                          <Button type="submit" className="w-full">Simpan Perubahan</Button>
-                                        </DialogFooter>
-                                      </form>
-                                    </DialogContent>
-                                  </Dialog>
-                                )}
-                                {isAuthorized && (
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                      onClick={() => handleDeleteEmployee(emp.id)}
-                                    >
-                                      Hapus
-                                    </Button>
-                                  )}
-                                </div>
-                              </TableCell>
+                      <DragDropContext onDragEnd={onDragEnd}>
+                        <Table>
+                          <TableHeader className="bg-gray-50/50">
+                            <TableRow>
+                              <TableHead className="sticky left-0 bg-gray-50 z-20 min-w-[200px] border-r border-gray-100">Pegawai</TableHead>
+                              {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => (
+                                <TableHead key={i} className="text-center min-w-[40px] px-1 text-[10px] font-bold">
+                                  {i + 1}
+                                </TableHead>
+                              ))}
+                              <TableHead className="sticky right-0 bg-gray-50 z-20 text-right min-w-[100px] border-l border-gray-100">Aksi</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <Droppable droppableId="employees-list">
+                            {(provided) => (
+                              <TableBody {...provided.droppableProps} ref={provided.innerRef}>
+                                {filteredEmployees.map((emp, index) => (
+                                  // @ts-ignore - Draggable key issue in some versions
+                                  <Draggable key={emp.id} draggableId={emp.id} index={index}>
+                                    {(provided, snapshot) => (
+                                      <TableRow 
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
+                                        className={`hover:bg-gray-50/30 transition-colors ${snapshot.isDragging ? 'bg-white shadow-lg z-50' : ''}`}
+                                      >
+                                        <TableCell className="sticky left-0 bg-white z-10 font-medium border-r border-gray-100 py-3">
+                                          <div className="flex items-center gap-2">
+                                            {isAuthorized && (
+                                              <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-primary transition-colors">
+                                                <GripVertical className="w-4 h-4" />
+                                              </div>
+                                            )}
+                                            <Avatar className="w-6 h-6">
+                                              <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.name}`} />
+                                              <AvatarFallback>{emp.name.charAt(0)}</AvatarFallback>
+                                            </Avatar>
+                                            <div className="flex flex-col min-w-0">
+                                              <span className="text-xs font-semibold truncate max-w-[100px]">{emp.name}</span>
+                                              <Badge variant="outline" className={`text-[7px] px-1 py-0 h-3 w-fit shrink-0 ${emp.type === 'Roster' ? 'text-blue-500 border-blue-200 bg-blue-50' : 'text-green-500 border-green-200 bg-green-50'}`}>
+                                                {emp.type}
+                                              </Badge>
+                                            </div>
+                                          </div>
+                                        </TableCell>
+                                        {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
+                                          const date = addDays(startOfMonth(currentMonth), i);
+                                          const shift = getShiftForDate(emp, date);
+                                          const shorthand = shift === 'Libur' ? 'L' : shift.charAt(0);
+                                          
+                                          return (
+                                            <TableCell key={i} className="p-1 text-center">
+                                              <div 
+                                                className={`
+                                                  w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
+                                                  ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 
+                                                    shift === 'Siang' ? 'bg-orange-100 text-orange-700' : 
+                                                    shift === 'Malam' ? 'bg-purple-100 text-purple-700' : 
+                                                    'bg-gray-100 text-gray-400'}
+                                                `}
+                                                title={`${format(date, 'd MMMM')}: ${shift}`}
+                                              >
+                                                {shorthand}
+                                              </div>
+                                            </TableCell>
+                                          );
+                                        })}
+                                        <TableCell className="sticky right-0 bg-white z-10 text-right border-l border-gray-100">
+                                          <div className="flex justify-end gap-1">
+                                            {isAuthorized && (
+                                              <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
+                                              <DialogTrigger
+                                                render={
+                                                  <Button 
+                                                    variant="ghost" 
+                                                    size="sm" 
+                                                    className="h-8 w-8 p-0 text-primary hover:text-primary hover:bg-primary/5"
+                                                    onClick={() => setEditingEmployee(emp)}
+                                                  />
+                                                }
+                                              >
+                                                <Settings className="w-4 h-4" />
+                                              </DialogTrigger>
+                                              <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+                                                <form onSubmit={handleEditEmployee}>
+                                                  <DialogHeader>
+                                                    <DialogTitle>Edit Jadwal Pegawai</DialogTitle>
+                                                    <DialogDescription>
+                                                      Perbarui detail dan tentukan jadwal libur/masuk secara manual.
+                                                    </DialogDescription>
+                                                  </DialogHeader>
+                                                  <div className="grid gap-6 py-4">
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                      <div className="grid gap-2">
+                                                        <Label htmlFor="edit-name">Nama Lengkap</Label>
+                                                        <Input id="edit-name" name="name" defaultValue={emp.name} required />
+                                                      </div>
+                                                      <div className="grid gap-2">
+                                                        <Label htmlFor="edit-position">Jabatan</Label>
+                                                        <Input id="edit-position" name="position" defaultValue={emp.position} required />
+                                                      </div>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                      <div className="grid gap-2">
+                                                        <Label htmlFor="edit-type">Tipe Pegawai</Label>
+                                                        <Select 
+                                                          name="type" 
+                                                          defaultValue={emp.type}
+                                                          onValueChange={(v) => {
+                                                            if (editingEmployee) {
+                                                              setEditingEmployee({ ...editingEmployee, type: v as EmployeeType });
+                                                            }
+                                                          }}
+                                                        >
+                                                          <SelectTrigger>
+                                                            <SelectValue placeholder="Pilih Tipe" />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                            <SelectItem value="Roster">Pegawai Roster (Otomatis)</SelectItem>
+                                                            <SelectItem value="Lokal">Pegawai Lokal (Tetap)</SelectItem>
+                                                          </SelectContent>
+                                                        </Select>
+                                                      </div>
+                                                      <div className="grid gap-2">
+                                                        <Label htmlFor="edit-startDate">Tanggal Mulai Roster</Label>
+                                                        <Input id="edit-startDate" name="startDate" type="date" defaultValue={emp.startDate} required />
+                                                      </div>
+                                                    </div>
+
+                                                    {editingEmployee?.type === 'Roster' ? (
+                                                      <div className="grid gap-2">
+                                                        <Label htmlFor="edit-pattern">Pola Roster (Masuk,Libur)</Label>
+                                                        <Input 
+                                                          id="edit-pattern" 
+                                                          name="pattern" 
+                                                          defaultValue={`${emp.rosterPattern.filter(x => x === 1).length},${emp.rosterPattern.filter(x => x === 0).length}`}
+                                                          placeholder="Contoh: 42,14" 
+                                                        />
+                                                        <p className="text-[10px] text-gray-400">Hanya berlaku untuk Pegawai Roster</p>
+                                                      </div>
+                                                    ) : (
+                                                      <div className="grid gap-2">
+                                                        <Label>Hari Libur Mingguan</Label>
+                                                        <div className="flex flex-wrap gap-2">
+                                                          {DAYS.map((day) => (
+                                                            <Button
+                                                              key={day.value}
+                                                              type="button"
+                                                              variant={editingEmployee?.offDays?.includes(day.value) ? 'default' : 'outline'}
+                                                              size="sm"
+                                                              className="h-8 px-2 text-[10px]"
+                                                              onClick={() => {
+                                                                if (editingEmployee) {
+                                                                  const currentOffDays = editingEmployee.offDays || [0, 6];
+                                                                  const newOffDays = currentOffDays.includes(day.value)
+                                                                    ? currentOffDays.filter(d => d !== day.value)
+                                                                    : [...currentOffDays, day.value];
+                                                                  setEditingEmployee({ ...editingEmployee, offDays: newOffDays });
+                                                                }
+                                                              }}
+                                                            >
+                                                              {day.label}
+                                                            </Button>
+                                                          ))}
+                                                        </div>
+                                                      </div>
+                                                    )}
+
+                                                    <div className="space-y-4">
+                                                      <div className="flex items-center justify-between">
+                                                        <Label className="text-base">Atur Jadwal ({format(currentMonth, 'MMMM yyyy', { locale: id })})</Label>
+                                                        <div className="flex flex-wrap gap-2 justify-end">
+                                                          <div className="flex items-center gap-1">
+                                                            <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-200 rounded-sm" />
+                                                            <span className="text-[9px] text-gray-500">Pagi</span>
+                                                          </div>
+                                                          <div className="flex items-center gap-1">
+                                                            <div className="w-2.5 h-2.5 bg-orange-100 border border-orange-200 rounded-sm" />
+                                                            <span className="text-[9px] text-gray-500">Siang</span>
+                                                          </div>
+                                                          <div className="flex items-center gap-1">
+                                                            <div className="w-2.5 h-2.5 bg-purple-100 border border-purple-200 rounded-sm" />
+                                                            <span className="text-[9px] text-gray-500">Malam</span>
+                                                          </div>
+                                                          <div className="flex items-center gap-1">
+                                                            <div className="w-2.5 h-2.5 bg-gray-100 border border-gray-200 rounded-sm" />
+                                                            <span className="text-[9px] text-gray-500">Libur</span>
+                                                          </div>
+                                                        </div>
+                                                      </div>
+                                                      
+                                                      <div className="grid grid-cols-7 gap-2 border p-4 rounded-lg bg-gray-50/50">
+                                                        {['S', 'S', 'R', 'K', 'J', 'S', 'M'].map((day, i) => (
+                                                          <div key={i} className="text-center text-[10px] font-bold text-gray-400 mb-1">{day}</div>
+                                                        ))}
+                                                        {Array.from({ length: getDaysInMonth(currentMonth) }).map((_, i) => {
+                                                          const date = addDays(startOfMonth(currentMonth), i);
+                                                          const shift = getShiftForDate(editingEmployee || emp, date);
+                                                          const isLibur = shift === 'Libur';
+                                                          const shorthand = isLibur ? 'L' : shift.charAt(0);
+                                                          
+                                                          return (
+                                                            <button
+                                                              key={i}
+                                                              type="button"
+                                                              onClick={() => toggleManualShift(date)}
+                                                              className={`
+                                                                aspect-square rounded-md flex flex-col items-center justify-center transition-all border
+                                                                ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
+                                                                  shift === 'Siang' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
+                                                                  shift === 'Malam' ? 'bg-purple-100 text-purple-700 border-purple-200' : 
+                                                                  'bg-white text-gray-400 border-gray-100 hover:border-primary/30'}
+                                                              `}
+                                                            >
+                                                              <span className="text-[10px] font-bold">{format(date, 'd')}</span>
+                                                              <span className="text-[8px] font-bold opacity-80">{shorthand}</span>
+                                                            </button>
+                                                          );
+                                                        })}
+                                                      </div>
+                                                      <p className="text-[10px] text-gray-400 italic text-center">
+                                                        Klik berulang pada tanggal untuk ganti status (Pagi → Siang → Malam → Libur)
+                                                      </p>
+                                                    </div>
+                                                  </div>
+                                                  <DialogFooter>
+                                                    <Button type="submit" className="w-full">Simpan Perubahan</Button>
+                                                  </DialogFooter>
+                                                </form>
+                                              </DialogContent>
+                                            </Dialog>
+                                          )}
+                                          {isAuthorized && (
+                                              <Button 
+                                                variant="ghost" 
+                                                size="sm" 
+                                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                                onClick={() => handleDeleteEmployee(emp.id)}
+                                              >
+                                                Hapus
+                                              </Button>
+                                            )}
+                                          </div>
+                                        </TableCell>
+                                      </TableRow>
+                                    )}
+                                  </Draggable>
+                                ))}
+                                {provided.placeholder}
+                              </TableBody>
+                            )}
+                          </Droppable>
+                        </Table>
+                      </DragDropContext>
                     </div>
                     <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
                       <div className="flex items-center gap-2">
