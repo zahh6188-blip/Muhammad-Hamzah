@@ -19,7 +19,8 @@ import {
   Search,
   MoreVertical,
   Briefcase,
-  Download
+  Download,
+  Menu
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
@@ -47,6 +48,13 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { 
+  Sheet, 
+  SheetContent, 
+  SheetHeader, 
+  SheetTitle, 
+  SheetTrigger 
+} from '@/components/ui/sheet';
 
 import { Employee, SHIFT_COLORS, ShiftType, EmployeeType } from './types';
 import { getShiftForDate, MOCK_EMPLOYEES } from './lib/roster-utils';
@@ -93,10 +101,7 @@ export default function App() {
 
   // Firestore Real-time Listener
   useEffect(() => {
-    if (!isAuthReady || !user) {
-      if (isAuthReady && !user) setEmployees(MOCK_EMPLOYEES);
-      return;
-    }
+    if (!isAuthReady) return;
 
     const path = 'employees';
     const unsubscribe = onSnapshot(collection(db, path), (snapshot) => {
@@ -104,9 +109,18 @@ export default function App() {
       snapshot.forEach((doc) => {
         emps.push(doc.data() as Employee);
       });
-      setEmployees(emps);
+      
+      // If no data in Firebase and not logged in, show mock data
+      // Otherwise show what's in Firebase
+      if (emps.length === 0 && !user) {
+        setEmployees(MOCK_EMPLOYEES);
+      } else {
+        setEmployees(emps);
+      }
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
+      // Only log error if it's not a permission error for unauthenticated users
+      // or if we want to see why it failed
+      console.error("Firestore sync error:", error);
     });
 
     return () => unsubscribe();
@@ -135,8 +149,13 @@ export default function App() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('daily');
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'error' | null>(null);
+
+  const isAuthorized = useMemo(() => {
+    return user?.email === 'zahh6188@gmail.com' && user?.emailVerified;
+  }, [user]);
   
   // State for Add Employee Form
   const [newEmployeeType, setNewEmployeeType] = useState<EmployeeType>('Roster');
@@ -216,8 +235,13 @@ export default function App() {
     const patternStr = formData.get('pattern') as string; // e.g. "4,2"
     const startDate = formData.get('startDate') as string;
     
-    const [on, off] = patternStr.split(',').map(Number);
-    const rosterPattern = isNaN(on) ? [1, 1, 1, 1, 1, 0, 0] : [...Array(on).fill(1), ...Array(off).fill(0)];
+    let rosterPattern = [1, 1, 1, 1, 1, 0, 0]; // Default 5-on-2-off
+    if (patternStr && patternStr.includes(',')) {
+      const [on, off] = patternStr.split(',').map(Number);
+      if (!isNaN(on) && !isNaN(off) && on >= 0 && off >= 0) {
+        rosterPattern = [...Array(on).fill(1), ...Array(off).fill(0)];
+      }
+    }
 
     const newEmployee: Employee = {
       id: Math.random().toString(36).substr(2, 9),
@@ -235,35 +259,39 @@ export default function App() {
     const path = `employees/${newEmployee.id}`;
     try {
       await setDoc(doc(db, 'employees', newEmployee.id), newEmployee);
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, path);
-    }
-    
-    // Sync to Google Sheets via backend (Optional legacy sync)
-    setIsSyncing(true);
-    try {
-      const response = await fetch('/api/employees', {
+      
+      // Reset form state and close dialog immediately for better UX
+      setNewEmployeeType('Roster');
+      setNewEmployeeOffDays([0, 6]);
+      setIsAddDialogOpen(false);
+      
+      // Sync to Google Sheets in the background
+      setIsSyncing(true);
+      fetch('/api/employees', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...newEmployee, allEmployees: updatedEmployees, operation: 'ADD' }),
+      })
+      .then(res => res.json())
+      .then(result => {
+        console.log('GDrive Sync Result:', result);
+        setLastSyncStatus('success');
+      })
+      .catch(err => {
+        console.error('Failed to sync with GDrive:', err);
+        setLastSyncStatus('error');
+      })
+      .finally(() => {
+        setIsSyncing(false);
+        setTimeout(() => setLastSyncStatus(null), 3000);
       });
-      const result = await response.json();
-      console.log('GDrive Sync Result:', result);
-      setLastSyncStatus('success');
-    } catch (error) {
-      console.error('Failed to sync with GDrive:', error);
-      setLastSyncStatus('error');
-    } finally {
-      setIsSyncing(false);
-      setTimeout(() => setLastSyncStatus(null), 3000);
-    }
 
-    // Reset form state
-    setNewEmployeeType('Roster');
-    setNewEmployeeOffDays([0, 6]);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
   };
 
-  const handleEditEmployee = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleEditEmployee = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!editingEmployee) return;
 
@@ -274,62 +302,59 @@ export default function App() {
     const patternStr = formData.get('pattern') as string;
     const startDate = formData.get('startDate') as string;
 
-    const updatedEmployees = employees.map(emp => {
-      if (emp.id === editingEmployee.id) {
-        let rosterPattern = emp.rosterPattern;
-        let finalStartDate = startDate || emp.startDate;
+    let rosterPattern = editingEmployee.rosterPattern;
+    let finalStartDate = startDate || editingEmployee.startDate;
 
-        if (patternStr) {
-          const [on, off] = patternStr.split(',').map(Number);
-          if (!isNaN(on) && !isNaN(off)) {
-            const newPattern = [...Array(on).fill(1), ...Array(off).fill(0)];
-            
-            // If pattern changed and user didn't manually change startDate, 
-            // align it to the start of the current month to ensure future consistency
-            const patternChanged = JSON.stringify(newPattern) !== JSON.stringify(emp.rosterPattern);
-            if (patternChanged && startDate === emp.startDate) {
-              finalStartDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
-            }
-            
-            rosterPattern = newPattern;
-          }
-        }
-        const updatedEmp = { 
-          ...emp, 
-          name, 
-          position, 
-          type, 
-          rosterPattern, 
-          startDate: finalStartDate,
-          offDays: type === 'Lokal' ? editingEmployee.offDays : undefined,
-          manualOverrides: editingEmployee.manualOverrides 
-        };
+    if (patternStr && patternStr.includes(',')) {
+      const [on, off] = patternStr.split(',').map(Number);
+      if (!isNaN(on) && !isNaN(off) && on >= 0 && off >= 0) {
+        const newPattern = [...Array(on).fill(1), ...Array(off).fill(0)];
         
-        const nextEmployees = employees.map(e => e.id === emp.id ? updatedEmp : e);
-
-        // Save to Firestore
-        const path = `employees/${updatedEmp.id}`;
-        setDoc(doc(db, 'employees', updatedEmp.id), updatedEmp).catch(error => {
-          handleFirestoreError(error, OperationType.WRITE, path);
-        });
-
-        // Sync to Google Sheets via backend
-        fetch('/api/employees', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ...updatedEmp, allEmployees: nextEmployees, operation: 'EDIT' }),
-        })
-        .then(res => res.json())
-        .then(result => console.log('GDrive Sync Result (EDIT):', result))
-        .catch(err => console.error('Failed to sync EDIT with GDrive:', err));
-
-        return updatedEmp;
+        // If pattern changed and user didn't manually change startDate, 
+        // align it to the start of the current month to ensure future consistency
+        const patternChanged = JSON.stringify(newPattern) !== JSON.stringify(editingEmployee.rosterPattern);
+        if (patternChanged && startDate === editingEmployee.startDate) {
+          finalStartDate = format(startOfMonth(currentMonth), 'yyyy-MM-dd');
+        }
+        
+        rosterPattern = newPattern;
       }
-      return emp;
-    });
+    }
 
-    setEmployees(updatedEmployees);
-    setEditingEmployee(null);
+    const updatedEmp: Employee = { 
+      ...editingEmployee, 
+      name, 
+      position, 
+      type, 
+      rosterPattern, 
+      startDate: finalStartDate,
+      offDays: type === 'Lokal' ? editingEmployee.offDays : undefined,
+      manualOverrides: editingEmployee.manualOverrides 
+    };
+
+    // Save to Firestore
+    const path = `employees/${updatedEmp.id}`;
+    try {
+      await setDoc(doc(db, 'employees', updatedEmp.id), updatedEmp);
+      
+      // Update local state only after successful Firestore write
+      const updatedEmployees = employees.map(emp => emp.id === updatedEmp.id ? updatedEmp : emp);
+      setEmployees(updatedEmployees);
+      setEditingEmployee(null);
+
+      // Sync to Google Sheets via backend
+      fetch('/api/employees', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...updatedEmp, allEmployees: updatedEmployees, operation: 'EDIT' }),
+      })
+      .then(res => res.json())
+      .then(result => console.log('GDrive Sync Result (EDIT):', result))
+      .catch(err => console.error('Failed to sync EDIT with GDrive:', err));
+
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, path);
+    }
   };
 
   const toggleManualShift = (date: Date) => {
@@ -384,13 +409,113 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#F8F9FB] text-[#1A1C1E] font-sans">
+      {/* Mobile Header */}
+      <div className="lg:hidden fixed top-0 left-0 w-full bg-white border-b border-gray-200 px-4 py-3 flex justify-between items-center z-20">
+        <div className="flex items-center">
+          <img 
+            src="https://www.pangansari.co.id/assets/images/logo.png" 
+            alt="PanganSari Logo" 
+            className="h-12 w-auto object-contain"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+        <Sheet>
+          <SheetTrigger
+            render={
+              <Button variant="ghost" size="icon">
+                <Menu className="w-6 h-6" />
+              </Button>
+            }
+          />
+          <SheetContent side="left" className="w-64 p-6">
+            <SheetHeader className="text-left mb-10">
+              <div className="flex items-center">
+                <img 
+                  src="https://www.pangansari.co.id/assets/images/logo.png" 
+                  alt="PanganSari Logo" 
+                  className="h-12 w-auto object-contain"
+                  referrerPolicy="no-referrer"
+                />
+              </div>
+            </SheetHeader>
+            <nav className="space-y-2 flex-1">
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start gap-3 ${activeTab === 'daily' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('daily')}
+              >
+                <LayoutDashboard className="w-5 h-5" />
+                Dashboard
+              </Button>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start gap-3 ${activeTab === 'monthly' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('monthly')}
+              >
+                <CalendarDays className="w-5 h-5" />
+                Jadwal Bulanan
+              </Button>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start gap-3 ${activeTab === 'calendar' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('calendar')}
+              >
+                <CalendarIcon className="w-5 h-5" />
+                Kalender Ringkasan
+              </Button>
+              <Button 
+                variant="ghost" 
+                className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+                onClick={() => setActiveTab('employees')}
+              >
+                <Users className="w-5 h-5" />
+                Daftar Pegawai
+              </Button>
+            </nav>
+            <div className="mt-auto pt-6 border-t border-gray-100">
+              {user ? (
+                <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors group relative">
+                  <Avatar className="w-10 h-10 border-2 border-white shadow-sm">
+                    <AvatarImage src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.email}`} />
+                    <AvatarFallback>{user.displayName?.charAt(0) || 'U'}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-sm font-semibold truncate">{user.displayName || 'User'}</p>
+                    <p className="text-[10px] text-gray-500 truncate">{user.email}</p>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-gray-400 hover:text-red-500"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="w-4 h-4" />
+                  </Button>
+                </div>
+              ) : (
+                <Button 
+                  variant="outline" 
+                  className="w-full gap-2 border-primary/20 hover:bg-primary/5 text-primary"
+                  onClick={handleLogin}
+                >
+                  <LogIn className="w-4 h-4" />
+                  Login dengan Google
+                </Button>
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+      </div>
+
       {/* Sidebar Navigation (Desktop) */}
       <div className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200 hidden lg:flex flex-col p-6 z-10">
-        <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white">
-            <Clock className="w-6 h-6" />
-          </div>
-          <h1 className="font-bold text-xl tracking-tight">Rosterly</h1>
+        <div className="flex items-center mb-10">
+          <img 
+            src="https://www.pangansari.co.id/assets/images/logo.png" 
+            alt="PanganSari Logo" 
+            className="h-16 w-auto object-contain"
+            referrerPolicy="no-referrer"
+          />
         </div>
 
         <nav className="space-y-2 flex-1">
@@ -425,10 +550,6 @@ export default function App() {
           >
             <Users className="w-5 h-5" />
             Daftar Pegawai
-          </Button>
-          <Button variant="ghost" className="w-full justify-start gap-3 text-gray-500">
-            <Settings className="w-5 h-5" />
-            Settings
           </Button>
         </nav>
 
@@ -466,7 +587,7 @@ export default function App() {
       </div>
 
       {/* Main Content */}
-      <main className="lg:ml-64 p-4 md:p-8 lg:p-10">
+      <main className="lg:ml-64 p-4 md:p-8 lg:p-10 pt-20 lg:pt-10">
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2">
@@ -504,8 +625,8 @@ export default function App() {
               <Download className="w-4 h-4" />
               Export Excel
             </Button>
-            {user && (
-              <Dialog>
+            {isAuthorized && (
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger
                   render={
                     <Button className="gap-2 shadow-sm" />
@@ -591,6 +712,15 @@ export default function App() {
             )}
           </div>
         </header>
+
+        {user && !isAuthorized && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-3 text-red-700">
+            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+            <p className="text-sm font-medium">
+              Akun <strong>{user.email}</strong> tidak memiliki izin akses ke database ini. Silakan hubungi administrator atau login dengan akun yang tepat.
+            </p>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -1022,7 +1152,8 @@ export default function App() {
                               })}
                               <TableCell className="sticky right-0 bg-white z-10 text-right border-l border-gray-100">
                                 <div className="flex justify-end gap-1">
-                                  <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
+                                  {isAuthorized && (
+                                    <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
                                     <DialogTrigger
                                       render={
                                         <Button 
@@ -1184,14 +1315,17 @@ export default function App() {
                                       </form>
                                     </DialogContent>
                                   </Dialog>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                    onClick={() => handleDeleteEmployee(emp.id)}
-                                  >
-                                    Hapus
-                                  </Button>
+                                )}
+                                {isAuthorized && (
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                      onClick={() => handleDeleteEmployee(emp.id)}
+                                    >
+                                      Hapus
+                                    </Button>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -1227,17 +1361,37 @@ export default function App() {
 
       {/* Mobile Navigation Bar */}
       <div className="lg:hidden fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 px-6 py-3 flex justify-between items-center z-20">
-        <Button variant="ghost" size="icon" className="text-primary">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={activeTab === 'daily' ? 'text-primary' : 'text-gray-400'}
+          onClick={() => setActiveTab('daily')}
+        >
           <LayoutDashboard className="w-6 h-6" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-gray-400">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={activeTab === 'monthly' ? 'text-primary' : 'text-gray-400'}
+          onClick={() => setActiveTab('monthly')}
+        >
           <CalendarDays className="w-6 h-6" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-gray-400">
-          <Users className="w-6 h-6" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={activeTab === 'calendar' ? 'text-primary' : 'text-gray-400'}
+          onClick={() => setActiveTab('calendar')}
+        >
+          <CalendarIcon className="w-6 h-6" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-gray-400">
-          <Settings className="w-6 h-6" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          className={activeTab === 'employees' ? 'text-primary' : 'text-gray-400'}
+          onClick={() => setActiveTab('employees')}
+        >
+          <Users className="w-6 h-6" />
         </Button>
       </div>
     </div>

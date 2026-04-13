@@ -24,6 +24,12 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAuthorized() {
+      return isAuthenticated() && 
+             request.auth.token.email == "zahh6188@gmail.com" && 
+             request.auth.token.email_verified == true;
+    }
+
     function isValidEmployee(data) {
       return data.keys().hasAll(['id', 'name', 'position', 'type', 'rosterPattern', 'startDate']) &&
              data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
@@ -36,11 +42,10 @@ service cloud.firestore {
     }
 
     match /employees/{employeeId} {
-      // For this app, we allow all authenticated users to read and write employees
-      // since it's a collaborative dashboard for the team.
-      allow read: if isAuthenticated();
-      allow create, update: if isAuthenticated() && isValidEmployee(request.resource.data);
-      allow delete: if isAuthenticated();
+      // Allow everyone to read the schedule
+      allow read: if true;
+      // Only the authorized account can modify data
+      allow write: if isAuthorized();
     }
   }
 }
