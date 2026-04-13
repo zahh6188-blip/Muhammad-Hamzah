@@ -49,6 +49,11 @@ export function getShiftForDate(employee: Employee, targetDate: Date): ShiftType
   
   const totalWorkDaysCount = (fullPatternsCount * workDaysInOnePattern) + workDaysInRemaining;
   
+  if (employee.type === 'Roster') {
+    const shiftRotation = ['Pagi', 'Malam'] as ShiftType[];
+    return shiftRotation[(totalWorkDaysCount - 1) % 2];
+  }
+  
   const shiftRotation = ['Pagi', 'Siang', 'Malam'] as ShiftType[];
   return shiftRotation[(totalWorkDaysCount - 1) % 3];
 }

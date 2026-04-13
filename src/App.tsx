@@ -368,7 +368,11 @@ export default function App() {
     if (currentShift === 'Libur') {
       newOverrides[dateStr] = 'Pagi';
     } else if (currentShift === 'Pagi') {
-      newOverrides[dateStr] = 'Siang';
+      if (editingEmployee.type === 'Roster') {
+        newOverrides[dateStr] = 'Malam';
+      } else {
+        newOverrides[dateStr] = 'Siang';
+      }
     } else if (currentShift === 'Siang') {
       newOverrides[dateStr] = 'Malam';
     } else {
@@ -879,7 +883,6 @@ export default function App() {
                                         {emp.type}
                                       </Badge>
                                     </div>
-                                    <p className="text-xs text-gray-400">ID: {emp.id}</p>
                                   </div>
                                 </div>
                               </TableCell>
@@ -905,6 +908,20 @@ export default function App() {
                         )}
                       </TableBody>
                     </Table>
+                    <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500" />
+                        <span className="text-xs text-gray-600 font-medium">Shift Pagi (07.00-15.00)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-orange-500" />
+                        <span className="text-xs text-gray-600 font-medium">Shift Siang (15.00-23.00)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-purple-500" />
+                        <span className="text-xs text-gray-600 font-medium">Shift Malam (23.00-07.00)</span>
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </motion.div>
@@ -991,18 +1008,18 @@ export default function App() {
                         </TableBody>
                       </Table>
                     </div>
-                    <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-4 justify-center">
+                    <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">P: Pagi</span>
+                        <span className="text-[10px] text-gray-500 font-medium">P: Pagi (07.00-15.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">S: Siang</span>
+                        <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">M: Malam</span>
+                        <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />
@@ -1347,18 +1364,18 @@ export default function App() {
                         </TableBody>
                       </Table>
                     </div>
-                    <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-4 justify-center">
+                    <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">P: Pagi</span>
+                        <span className="text-[10px] text-gray-500 font-medium">P: Pagi (07.00-15.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">S: Siang</span>
+                        <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
-                        <span className="text-[10px] text-gray-500 font-medium">M: Malam</span>
+                        <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />
