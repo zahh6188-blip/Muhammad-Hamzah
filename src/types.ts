@@ -24,7 +24,7 @@ export interface Shift {
 export const SHIFT_COLORS: Record<ShiftType, string> = {
   'Pagi': 'bg-blue-600 text-white border-blue-700',
   'Siang': 'bg-orange-600 text-white border-orange-700',
-  'Malam': 'bg-purple-600 text-white border-purple-700',
+  'Malam': 'bg-[#004225] text-white border-[#00331c]',
   'Libur': 'bg-gray-100 text-gray-500 border-gray-200',
   'Cuti': 'bg-red-600 text-white border-red-700',
 };

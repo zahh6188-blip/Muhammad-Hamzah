@@ -1048,7 +1048,7 @@ export default function App() {
                                         w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
                                         ${shift === 'Pagi' ? 'bg-blue-600 text-white' : 
                                           shift === 'Siang' ? 'bg-orange-600 text-white' : 
-                                          shift === 'Malam' ? 'bg-purple-600 text-white' : 
+                                          shift === 'Malam' ? 'bg-[#004225] text-white' : 
                                           shift === 'Cuti' ? 'bg-red-600 text-white' :
                                           'bg-gray-100 text-gray-400'}
                                       `}
@@ -1074,7 +1074,7 @@ export default function App() {
                         <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-purple-600" />
+                        <div className="w-3 h-3 rounded-sm bg-[#004225]" />
                         <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1175,10 +1175,10 @@ export default function App() {
                               {malamCount > 0 && (
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                    <div className="w-1.5 h-1.5 rounded-full bg-[#004225]" />
                                     <span className="text-[9px] text-gray-500">Malam</span>
                                   </div>
-                                  <span className="text-[9px] font-bold text-purple-600">{malamCount}</span>
+                                  <span className="text-[9px] font-bold text-[#004225]">{malamCount}</span>
                                 </div>
                               )}
                               {cutiCount > 0 && (
@@ -1348,7 +1348,7 @@ export default function App() {
                                                   w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
                                                   ${shift === 'Pagi' ? 'bg-blue-600 text-white' : 
                                                     shift === 'Siang' ? 'bg-orange-600 text-white' : 
-                                                    shift === 'Malam' ? 'bg-purple-600 text-white' : 
+                                                    shift === 'Malam' ? 'bg-[#004225] text-white' : 
                                                     shift === 'Cuti' ? 'bg-red-600 text-white' :
                                                     'bg-gray-100 text-gray-400'}
                                                 `}
@@ -1473,7 +1473,7 @@ export default function App() {
                                                             <span className="text-[9px] text-gray-500">Siang</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
-                                                            <div className="w-2.5 h-2.5 bg-purple-600 rounded-sm" />
+                                                            <div className="w-2.5 h-2.5 bg-[#004225] rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Malam</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
@@ -1506,7 +1506,7 @@ export default function App() {
                                                                 aspect-square rounded-md flex flex-col items-center justify-center transition-all border
                                                                 ${shift === 'Pagi' ? 'bg-blue-600 text-white border-blue-700' : 
                                                                   shift === 'Siang' ? 'bg-orange-600 text-white border-orange-700' : 
-                                                                  shift === 'Malam' ? 'bg-purple-600 text-white border-purple-700' : 
+                                                                  shift === 'Malam' ? 'bg-[#004225] text-white border-[#00331c]' : 
                                                                   shift === 'Cuti' ? 'bg-red-600 text-white border-red-700' :
                                                                   'bg-white text-gray-400 border-gray-100 hover:border-primary/30'}
                                                               `}
@@ -1559,7 +1559,7 @@ export default function App() {
                         <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-purple-600" />
+                        <div className="w-3 h-3 rounded-sm bg-[#004225]" />
                         <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
