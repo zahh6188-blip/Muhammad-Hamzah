@@ -150,6 +150,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<string>('daily');
+  const [viewingDate, setViewingDate] = useState<Date | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -166,7 +167,10 @@ export default function App() {
   // Stats
   const stats = useMemo(() => {
     const today = new Date();
-    const workingToday = employees.filter(emp => getShiftForDate(emp, today) !== 'Libur').length;
+    const workingToday = employees.filter(emp => {
+      const shift = getShiftForDate(emp, today);
+      return shift !== 'Libur' && shift !== 'Cuti';
+    }).length;
     const offToday = employees.length - workingToday;
     return {
       total: employees.length,
@@ -403,7 +407,7 @@ export default function App() {
     const currentShift = getShiftForDate(editingEmployee, date);
     const newOverrides = { ...(editingEmployee.manualOverrides || {}) };
     
-    // Cycle: Libur -> Pagi -> Siang -> Malam -> Libur
+    // Cycle: Libur -> Pagi -> Siang -> Malam -> Cuti -> Libur
     if (currentShift === 'Libur') {
       newOverrides[dateStr] = 'Pagi';
     } else if (currentShift === 'Pagi') {
@@ -414,6 +418,8 @@ export default function App() {
       }
     } else if (currentShift === 'Siang') {
       newOverrides[dateStr] = 'Malam';
+    } else if (currentShift === 'Malam') {
+      newOverrides[dateStr] = 'Cuti';
     } else {
       newOverrides[dateStr] = 'Libur';
     }
@@ -854,6 +860,7 @@ export default function App() {
                     <SelectItem value="Siang">Siang</SelectItem>
                     <SelectItem value="Malam">Malam</SelectItem>
                     <SelectItem value="Libur">Libur</SelectItem>
+                    <SelectItem value="Cuti">Cuti</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -960,6 +967,10 @@ export default function App() {
                         <div className="w-3 h-3 rounded-full bg-purple-500" />
                         <span className="text-xs text-gray-600 font-medium">Shift Malam (23.00-07.00)</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-red-500" />
+                        <span className="text-xs text-gray-600 font-medium">Cuti</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1064,6 +1075,10 @@ export default function App() {
                         <div className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />
                         <span className="text-[10px] text-gray-500 font-medium">L: Libur</span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+                        <span className="text-[10px] text-gray-500 font-medium">C: Cuti</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1106,15 +1121,25 @@ export default function App() {
                         <div key={`empty-${i}`} className="h-24 rounded-lg bg-gray-50/30" />
                       ))}
                       {calendarDays.map(day => {
-                        const workingCount = employees.filter(emp => getShiftForDate(emp, day) !== 'Libur').length;
+                        const dayShifts = employees.map(emp => getShiftForDate(emp, day));
+                        const pagiCount = dayShifts.filter(s => s === 'Pagi').length;
+                        const siangCount = dayShifts.filter(s => s === 'Siang').length;
+                        const malamCount = dayShifts.filter(s => s === 'Malam').length;
+                        const cutiCount = dayShifts.filter(s => s === 'Cuti').length;
+                        const liburCount = dayShifts.filter(s => s === 'Libur').length;
+                        const workingCount = pagiCount + siangCount + malamCount;
+                        
                         const isToday = isSameDay(day, new Date());
                         const isSelected = isSameDay(day, selectedDate);
 
                         return (
                           <div 
                             key={day.toString()}
-                            onClick={() => setSelectedDate(day)}
-                            className={`h-24 p-2 rounded-lg border transition-all cursor-pointer flex flex-col justify-between
+                            onClick={() => {
+                              setSelectedDate(day);
+                              setViewingDate(day);
+                            }}
+                            className={`min-h-[100px] p-2 rounded-lg border transition-all cursor-pointer flex flex-col gap-1
                               ${isSelected ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-gray-100 bg-white hover:border-primary/50'}
                               ${isToday ? 'relative after:absolute after:top-1 after:right-1 after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full' : ''}
                             `}
@@ -1122,16 +1147,53 @@ export default function App() {
                             <span className={`text-sm font-semibold ${isSelected ? 'text-primary' : 'text-gray-700'}`}>
                               {format(day, 'd')}
                             </span>
-                            <div className="space-y-1">
-                              {workingCount > 0 && (
-                                <div className="flex items-center gap-1">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                  <span className="text-[10px] font-medium text-gray-500">{workingCount} Masuk</span>
+                            <div className="flex flex-col gap-0.5">
+                              {pagiCount > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                    <span className="text-[9px] text-gray-500">Pagi</span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-blue-600">{pagiCount}</span>
                                 </div>
                               )}
-                              <div className="flex items-center gap-1">
-                                <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                <span className="text-[10px] font-medium text-gray-400">{employees.length - workingCount} Off</span>
+                              {siangCount > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                                    <span className="text-[9px] text-gray-500">Siang</span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-orange-600">{siangCount}</span>
+                                </div>
+                              )}
+                              {malamCount > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500" />
+                                    <span className="text-[9px] text-gray-500">Malam</span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-purple-600">{malamCount}</span>
+                                </div>
+                              )}
+                              {cutiCount > 0 && (
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                    <span className="text-[9px] text-gray-500">Cuti</span>
+                                  </div>
+                                  <span className="text-[9px] font-bold text-red-600">{cutiCount}</span>
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                  <span className="text-[9px] text-gray-500">Libur</span>
+                                </div>
+                                <span className="text-[9px] font-bold text-gray-400">{liburCount}</span>
+                              </div>
+                              <div className="mt-1 pt-1 border-t border-gray-50 flex justify-between items-center">
+                                <span className="text-[8px] text-gray-400 uppercase font-bold">Total</span>
+                                <span className="text-[9px] font-bold text-gray-700">{workingCount}</span>
                               </div>
                             </div>
                           </div>
@@ -1140,6 +1202,62 @@ export default function App() {
                     </div>
                   </CardContent>
                 </Card>
+
+                <Dialog open={!!viewingDate} onOpenChange={(open) => !open && setViewingDate(null)}>
+                  <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Detail Shift: {viewingDate && format(viewingDate, 'EEEE, d MMMM yyyy', { locale: id })}</DialogTitle>
+                      <DialogDescription>
+                        Daftar pegawai yang bertugas pada tanggal ini.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Pegawai</TableHead>
+                            <TableHead>Shift</TableHead>
+                            <TableHead>Jabatan</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {viewingDate && employees
+                            .map(emp => ({ ...emp, shift: getShiftForDate(emp, viewingDate) }))
+                            .filter(emp => emp.shift !== 'Libur' && emp.shift !== 'Cuti')
+                            .map(emp => (
+                              <TableRow key={emp.id}>
+                                <TableCell className="font-medium">
+                                  <div className="flex items-center gap-2">
+                                    <Avatar className="w-6 h-6">
+                                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.name}`} />
+                                      <AvatarFallback>{emp.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <span className="text-xs">{emp.name}</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge className={`text-[10px] ${SHIFT_COLORS[emp.shift]}`}>
+                                    {emp.shift}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs text-gray-500">{emp.position}</TableCell>
+                              </TableRow>
+                            ))}
+                          {viewingDate && employees
+                            .map(emp => ({ ...emp, shift: getShiftForDate(emp, viewingDate) }))
+                            .filter(emp => emp.shift === 'Libur' || emp.shift === 'Cuti')
+                            .length === employees.length && (
+                              <TableRow>
+                                <TableCell colSpan={3} className="text-center py-8 text-gray-400">
+                                  Tidak ada pegawai yang bertugas hari ini.
+                                </TableCell>
+                              </TableRow>
+                            )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </motion.div>
             </TabsContent>
 
@@ -1357,6 +1475,10 @@ export default function App() {
                                                             <div className="w-2.5 h-2.5 bg-gray-100 border border-gray-200 rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Libur</span>
                                                           </div>
+                                                          <div className="flex items-center gap-1">
+                                                            <div className="w-2.5 h-2.5 bg-red-100 border border-red-200 rounded-sm" />
+                                                            <span className="text-[9px] text-gray-500">Cuti</span>
+                                                          </div>
                                                         </div>
                                                       </div>
                                                       
@@ -1440,6 +1562,10 @@ export default function App() {
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-sm bg-gray-100 border border-gray-200" />
                         <span className="text-[10px] text-gray-500 font-medium">L: Libur</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+                        <span className="text-[10px] text-gray-500 font-medium">C: Cuti</span>
                       </div>
                     </div>
                   </CardContent>

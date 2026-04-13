@@ -1,4 +1,4 @@
-export type ShiftType = 'Pagi' | 'Siang' | 'Malam' | 'Libur';
+export type ShiftType = 'Pagi' | 'Siang' | 'Malam' | 'Libur' | 'Cuti';
 
 export type EmployeeType = 'Roster' | 'Lokal';
 
@@ -26,4 +26,5 @@ export const SHIFT_COLORS: Record<ShiftType, string> = {
   'Siang': 'bg-orange-100 text-orange-700 border-orange-200',
   'Malam': 'bg-purple-100 text-purple-700 border-purple-200',
   'Libur': 'bg-gray-100 text-gray-500 border-gray-200',
+  'Cuti': 'bg-red-100 text-red-700 border-red-200',
 };
