@@ -415,9 +415,14 @@ export default function App() {
           <img 
             src="https://www.pangansari.co.id/assets/images/logo.png" 
             alt="PanganSari Logo" 
-            className="h-12 w-auto object-contain"
+            className="h-8 md:h-10 w-auto object-contain"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
           />
+          <span className="text-xl font-bold text-[#7AB533]">PanganSari</span>
         </div>
         <Sheet>
           <SheetTrigger
@@ -433,9 +438,14 @@ export default function App() {
                 <img 
                   src="https://www.pangansari.co.id/assets/images/logo.png" 
                   alt="PanganSari Logo" 
-                  className="h-12 w-auto object-contain"
+                  className="h-10 w-auto object-contain"
                   referrerPolicy="no-referrer"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                  }}
                 />
+                <span className="text-xl font-bold text-[#7AB533]">PanganSari</span>
               </div>
             </SheetHeader>
             <nav className="space-y-2 flex-1">
@@ -445,7 +455,7 @@ export default function App() {
                 onClick={() => setActiveTab('daily')}
               >
                 <LayoutDashboard className="w-5 h-5" />
-                Dashboard
+                Jadwal Harian
               </Button>
               <Button 
                 variant="ghost" 
@@ -468,8 +478,8 @@ export default function App() {
                 className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
                 onClick={() => setActiveTab('employees')}
               >
-                <Users className="w-5 h-5" />
-                Daftar Pegawai
+                <Settings className="w-5 h-5" />
+                Setting
               </Button>
             </nav>
             <div className="mt-auto pt-6 border-t border-gray-100">
@@ -513,9 +523,14 @@ export default function App() {
           <img 
             src="https://www.pangansari.co.id/assets/images/logo.png" 
             alt="PanganSari Logo" 
-            className="h-16 w-auto object-contain"
+            className="h-12 w-auto object-contain"
             referrerPolicy="no-referrer"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
           />
+          <span className="text-2xl font-bold text-[#7AB533]">PanganSari</span>
         </div>
 
         <nav className="space-y-2 flex-1">
@@ -525,7 +540,7 @@ export default function App() {
             onClick={() => setActiveTab('daily')}
           >
             <LayoutDashboard className="w-5 h-5" />
-            Dashboard
+            Jadwal Harian
           </Button>
           <Button 
             variant="ghost" 
@@ -548,8 +563,8 @@ export default function App() {
             className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
             onClick={() => setActiveTab('employees')}
           >
-            <Users className="w-5 h-5" />
-            Daftar Pegawai
+            <Settings className="w-5 h-5" />
+            Setting
           </Button>
         </nav>
 
@@ -591,7 +606,7 @@ export default function App() {
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-3xl font-bold tracking-tight">Dashboard Jadwal</h2>
+              <h2 className="text-3xl font-bold tracking-tight">Jadwal Harian</h2>
               {isSyncing && (
                 <Badge variant="outline" className="animate-pulse text-blue-500 border-blue-200 bg-blue-50">
                   Syncing...
@@ -608,7 +623,6 @@ export default function App() {
                 </Badge>
               )}
             </div>
-            <p className="text-gray-500 mt-1">Selamat datang kembali. Berikut adalah ringkasan roster hari ini.</p>
           </div>
           <div className="flex items-center gap-3">
             {!user && (
@@ -1391,7 +1405,7 @@ export default function App() {
           className={activeTab === 'employees' ? 'text-primary' : 'text-gray-400'}
           onClick={() => setActiveTab('employees')}
         >
-          <Users className="w-6 h-6" />
+          <Settings className="w-6 h-6" />
         </Button>
       </div>
     </div>
