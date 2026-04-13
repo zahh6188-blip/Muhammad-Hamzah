@@ -157,7 +157,8 @@ export default function App() {
   const [lastSyncStatus, setLastSyncStatus] = useState<'success' | 'error' | null>(null);
 
   const isAuthorized = useMemo(() => {
-    return user?.email === 'zahh6188@gmail.com' && user?.emailVerified;
+    const adminEmails = ['zahh6188@gmail.com', 'hamzah@gmail.com'];
+    return user?.email && adminEmails.includes(user.email) && user?.emailVerified;
   }, [user]);
   
   // State for Add Employee Form
@@ -522,14 +523,16 @@ export default function App() {
                 <CalendarIcon className="w-5 h-5" />
                 Kalender Ringkasan
               </Button>
-              <Button 
-                variant="ghost" 
-                className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
-                onClick={() => setActiveTab('employees')}
-              >
-                <Settings className="w-5 h-5" />
-                Setting
-              </Button>
+              {isAuthorized && (
+                <Button 
+                  variant="ghost" 
+                  className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+                  onClick={() => setActiveTab('employees')}
+                >
+                  <Settings className="w-5 h-5" />
+                  Setting
+                </Button>
+              )}
             </nav>
             <div className="mt-auto pt-6 border-t border-gray-100">
               {user ? (
@@ -607,14 +610,16 @@ export default function App() {
             <CalendarIcon className="w-5 h-5" />
             Kalender Ringkasan
           </Button>
-          <Button 
-            variant="ghost" 
-            className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
-            onClick={() => setActiveTab('employees')}
-          >
-            <Settings className="w-5 h-5" />
-            Setting
-          </Button>
+          {isAuthorized && (
+            <Button 
+              variant="ghost" 
+              className={`w-full justify-start gap-3 ${activeTab === 'employees' ? 'bg-primary/5 text-primary' : 'text-gray-500'}`}
+              onClick={() => setActiveTab('employees')}
+            >
+              <Settings className="w-5 h-5" />
+              Setting
+            </Button>
+          )}
         </nav>
 
         <div className="pt-6 border-t border-gray-100">
@@ -1041,9 +1046,10 @@ export default function App() {
                                     <div 
                                       className={`
                                         w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
-                                        ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 
-                                          shift === 'Siang' ? 'bg-orange-100 text-orange-700' : 
-                                          shift === 'Malam' ? 'bg-purple-100 text-purple-700' : 
+                                        ${shift === 'Pagi' ? 'bg-blue-600 text-white' : 
+                                          shift === 'Siang' ? 'bg-orange-600 text-white' : 
+                                          shift === 'Malam' ? 'bg-purple-600 text-white' : 
+                                          shift === 'Cuti' ? 'bg-red-600 text-white' :
                                           'bg-gray-100 text-gray-400'}
                                       `}
                                       title={`${format(date, 'd MMMM')}: ${shift}`}
@@ -1060,15 +1066,15 @@ export default function App() {
                     </div>
                     <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
+                        <div className="w-3 h-3 rounded-sm bg-blue-600" />
                         <span className="text-[10px] text-gray-500 font-medium">P: Pagi (07.00-15.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-200" />
+                        <div className="w-3 h-3 rounded-sm bg-orange-600" />
                         <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
+                        <div className="w-3 h-3 rounded-sm bg-purple-600" />
                         <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1076,7 +1082,7 @@ export default function App() {
                         <span className="text-[10px] text-gray-500 font-medium">L: Libur</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+                        <div className="w-3 h-3 rounded-sm bg-red-600" />
                         <span className="text-[10px] text-gray-500 font-medium">C: Cuti</span>
                       </div>
                     </div>
@@ -1262,11 +1268,12 @@ export default function App() {
             </TabsContent>
 
             <TabsContent value="employees" key="employees">
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-              >
+              {isAuthorized ? (
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                >
                 <Card className="border-none shadow-sm">
                   <CardHeader className="flex flex-row items-center justify-between">
                     <div>
@@ -1314,11 +1321,9 @@ export default function App() {
                                       >
                                         <TableCell className="sticky left-0 bg-white z-10 font-medium border-r border-gray-100 py-3">
                                           <div className="flex items-center gap-2">
-                                            {isAuthorized && (
-                                              <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-primary transition-colors">
-                                                <GripVertical className="w-4 h-4" />
-                                              </div>
-                                            )}
+                                            <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-primary transition-colors">
+                                              <GripVertical className="w-4 h-4" />
+                                            </div>
                                             <Avatar className="w-6 h-6">
                                               <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${emp.name}`} />
                                               <AvatarFallback>{emp.name.charAt(0)}</AvatarFallback>
@@ -1341,9 +1346,10 @@ export default function App() {
                                               <div 
                                                 className={`
                                                   w-7 h-7 rounded-md flex items-center justify-center text-[10px] font-bold mx-auto
-                                                  ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700' : 
-                                                    shift === 'Siang' ? 'bg-orange-100 text-orange-700' : 
-                                                    shift === 'Malam' ? 'bg-purple-100 text-purple-700' : 
+                                                  ${shift === 'Pagi' ? 'bg-blue-600 text-white' : 
+                                                    shift === 'Siang' ? 'bg-orange-600 text-white' : 
+                                                    shift === 'Malam' ? 'bg-purple-600 text-white' : 
+                                                    shift === 'Cuti' ? 'bg-red-600 text-white' :
                                                     'bg-gray-100 text-gray-400'}
                                                 `}
                                                 title={`${format(date, 'd MMMM')}: ${shift}`}
@@ -1355,8 +1361,7 @@ export default function App() {
                                         })}
                                         <TableCell className="sticky right-0 bg-white z-10 text-right border-l border-gray-100">
                                           <div className="flex justify-end gap-1">
-                                            {isAuthorized && (
-                                              <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
+                                            <Dialog open={!!editingEmployee && editingEmployee.id === emp.id} onOpenChange={(open) => !open && setEditingEmployee(null)}>
                                               <DialogTrigger
                                                 render={
                                                   <Button 
@@ -1460,15 +1465,15 @@ export default function App() {
                                                         <Label className="text-base">Atur Jadwal ({format(currentMonth, 'MMMM yyyy', { locale: id })})</Label>
                                                         <div className="flex flex-wrap gap-2 justify-end">
                                                           <div className="flex items-center gap-1">
-                                                            <div className="w-2.5 h-2.5 bg-blue-100 border border-blue-200 rounded-sm" />
+                                                            <div className="w-2.5 h-2.5 bg-blue-600 rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Pagi</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
-                                                            <div className="w-2.5 h-2.5 bg-orange-100 border border-orange-200 rounded-sm" />
+                                                            <div className="w-2.5 h-2.5 bg-orange-600 rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Siang</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
-                                                            <div className="w-2.5 h-2.5 bg-purple-100 border border-purple-200 rounded-sm" />
+                                                            <div className="w-2.5 h-2.5 bg-purple-600 rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Malam</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
@@ -1476,7 +1481,7 @@ export default function App() {
                                                             <span className="text-[9px] text-gray-500">Libur</span>
                                                           </div>
                                                           <div className="flex items-center gap-1">
-                                                            <div className="w-2.5 h-2.5 bg-red-100 border border-red-200 rounded-sm" />
+                                                            <div className="w-2.5 h-2.5 bg-red-600 rounded-sm" />
                                                             <span className="text-[9px] text-gray-500">Cuti</span>
                                                           </div>
                                                         </div>
@@ -1499,9 +1504,10 @@ export default function App() {
                                                               onClick={() => toggleManualShift(date)}
                                                               className={`
                                                                 aspect-square rounded-md flex flex-col items-center justify-center transition-all border
-                                                                ${shift === 'Pagi' ? 'bg-blue-100 text-blue-700 border-blue-200' : 
-                                                                  shift === 'Siang' ? 'bg-orange-100 text-orange-700 border-orange-200' : 
-                                                                  shift === 'Malam' ? 'bg-purple-100 text-purple-700 border-purple-200' : 
+                                                                ${shift === 'Pagi' ? 'bg-blue-600 text-white border-blue-700' : 
+                                                                  shift === 'Siang' ? 'bg-orange-600 text-white border-orange-700' : 
+                                                                  shift === 'Malam' ? 'bg-purple-600 text-white border-purple-700' : 
+                                                                  shift === 'Cuti' ? 'bg-red-600 text-white border-red-700' :
                                                                   'bg-white text-gray-400 border-gray-100 hover:border-primary/30'}
                                                               `}
                                                             >
@@ -1522,17 +1528,14 @@ export default function App() {
                                                 </form>
                                               </DialogContent>
                                             </Dialog>
-                                          )}
-                                          {isAuthorized && (
-                                              <Button 
-                                                variant="ghost" 
-                                                size="sm" 
-                                                className="text-red-500 hover:text-red-600 hover:bg-red-50"
-                                                onClick={() => handleDeleteEmployee(emp.id)}
-                                              >
-                                                Hapus
-                                              </Button>
-                                            )}
+                                            <Button 
+                                              variant="ghost" 
+                                              size="sm" 
+                                              className="text-red-500 hover:text-red-600 hover:bg-red-50"
+                                              onClick={() => handleDeleteEmployee(emp.id)}
+                                            >
+                                              Hapus
+                                            </Button>
                                           </div>
                                         </TableCell>
                                       </TableRow>
@@ -1548,15 +1551,15 @@ export default function App() {
                     </div>
                     <div className="p-4 border-t border-gray-100 bg-gray-50/30 flex flex-wrap gap-6 justify-center">
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200" />
+                        <div className="w-3 h-3 rounded-sm bg-blue-600" />
                         <span className="text-[10px] text-gray-500 font-medium">P: Pagi (07.00-15.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-orange-100 border border-orange-200" />
+                        <div className="w-3 h-3 rounded-sm bg-orange-600" />
                         <span className="text-[10px] text-gray-500 font-medium">S: Siang (15.00-23.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-purple-100 border border-purple-200" />
+                        <div className="w-3 h-3 rounded-sm bg-purple-600" />
                         <span className="text-[10px] text-gray-500 font-medium">M: Malam (23.00-07.00)</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -1564,14 +1567,25 @@ export default function App() {
                         <span className="text-[10px] text-gray-500 font-medium">L: Libur</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-sm bg-red-100 border border-red-200" />
+                        <div className="w-3 h-3 rounded-sm bg-red-600" />
                         <span className="text-[10px] text-gray-500 font-medium">C: Cuti</span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
-            </TabsContent>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-20 text-center bg-white rounded-xl border border-dashed border-gray-200">
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                  <Settings className="w-8 h-8 text-gray-300" />
+                </div>
+                <h3 className="text-lg font-semibold text-gray-900">Akses Terbatas</h3>
+                <p className="text-sm text-gray-500 max-w-xs mx-auto mt-2">
+                  Anda tidak memiliki izin untuk mengakses menu Setting. Silakan hubungi administrator untuk mendapatkan akses.
+                </p>
+              </div>
+            )}
+          </TabsContent>
           </AnimatePresence>
         </Tabs>
       </main>
